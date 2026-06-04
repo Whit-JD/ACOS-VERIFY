@@ -1,0 +1,2102 @@
+{
+  "name": "CONTENT_AUTOMATION_ACOS_EXTERNAL_SOURCE_READY_v6_RUNTIME_SCHEMA_MATCHED",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "3c00abd1-ffa4-4a36-adbf-9b7c146ef564",
+      "name": "00_수동실행",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "cd4be25e-c0bb-498f-b49d-1590c3957d79",
+      "name": "00_매일실행",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -496,
+        592
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "8e24c949-cc3d-49ab-9a45-7e86bf449cce",
+      "name": "01_시작합치기",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -256,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    runId: 'ACOS-' + new Date().toISOString().replace(/[-:.TZ]/g,'').slice(0,14),\n    settingDbId: '36d5601fa6ea805c9296f07d6a8a8b41',\n    materialDbId: '36d5601fa6ea80368d19c031a4b27490',\n    contentDbId: '36d5601fa6ea801c9f05e5d00899d5ff',\n    imageDbId: '36d5601fa6ea80509be2fd246f5ec5ad',\n    publishDbId: '36f5601fa6ea809d946ad8a2d1f39181',\n    performanceDbId: '36d5601fa6ea80488efdd33db6903202'\n  }\n}];"
+      },
+      "id": "1cccc40b-5780-403b-b573-2277d854f978",
+      "name": "03_DB_ID추출",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.notion.com/v1/databases/{{$json.settingDbId}}/query",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { filter: { property: \"사용여부\", select: { equals: \"사용\" } }, page_size: 1 } }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "359631fe-88a3-4ee7-80f2-3a6645623bd3",
+      "name": "04_운영설정조회",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        528,
+        480
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "6igIb6MkZWrgnz1D",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst ids = $('03_DB_ID추출').first().json;\nconst page = ($json.results||[])[0];\nif(!page) throw new Error('ACOS_운영설정DB에 사용여부=사용 행이 없습니다.');\nconst p = page.properties || {};\nfunction v(name, fallback=''){\n const prop = p[name]; if(!prop) return fallback;\n if(prop.title) return prop.title.map(x=>x.plain_text).join('') || fallback;\n if(prop.rich_text) return prop.rich_text.map(x=>x.plain_text).join('') || fallback;\n if(prop.select) return prop.select?.name || fallback;\n if(prop.multi_select) return prop.multi_select.map(x=>x.name);\n if(typeof prop.number === 'number') return prop.number;\n if(prop.checkbox !== undefined) return prop.checkbox;\n return fallback;\n}\nconst platforms = Array.isArray(v('플랫폼운영',[])) && v('플랫폼운영',[]).length ? v('플랫폼운영',[]) : ['티스토리','네이버블로그','구글블로그'];\nconst defaultTracks = Array.isArray(v('기본소재트랙',[])) && v('기본소재트랙',[]).length ? v('기본소재트랙',[]) : ['생활문제해결','정보편의','트렌드급상승','포털니즈','유튜브니즈','구매전환'];\nconst trendSources = Array.isArray(v('트렌드소스',[])) && v('트렌드소스',[]).length ? v('트렌드소스',[]) : ['구글트렌드','네이버검색','유튜브','커뮤니티','쿠팡후기','지식인','뉴스'];\nreturn [{json:{...ids,\n dailyTarget: Number(v('일일생산목표',12)),\n publishLimit: Number(v('일일발행상한',9)),\n minReviewCount: Number(v('검수최소회수',3)),\n autoImage: !!v('자동이미지생성',true),\n autoPublish: !!v('자동발행허용',false),\n costMode: v('비용절감모드','표준'),\n trendTTLHours: Number(v('트렌드기본TTL시간',24)),\n lifeTTLDays: Number(v('생활형기본TTL일',30)),\n platforms, defaultTracks, trendSources,\n settingPageId: page.id\n}}];\n"
+      },
+      "id": "efaac4a1-95fc-4b1a-88ec-c9d8412e7c3a",
+      "name": "05_운영설정정리",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.notion.com/v1/databases/{{$json.materialDbId}}/query",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { filter: { and: [ { property: \"사용여부\", select: { equals: \"사용\" } }, { property: \"진행상태\", select: { equals: \"대기\" } } ] }, sorts: [ { property: \"우선순위\", direction: \"ascending\" } ], page_size: $json.dailyTarget } }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "c4572408-d6d5-47d9-9e13-2a7476a5ef62",
+      "name": "06_소재대기조회",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        480
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "6igIb6MkZWrgnz1D",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('05_운영설정정리').first().json;\nconst pages = $json.results || [];\nfunction propVal(prop){\n if(!prop) return '';\n if(prop.title) return prop.title.map(x=>x.plain_text).join('');\n if(prop.rich_text) return prop.rich_text.map(x=>x.plain_text).join('');\n if(prop.select) return prop.select?.name || '';\n if(prop.multi_select) return prop.multi_select.map(x=>x.name);\n if(prop.date) return prop.date?.start || '';\n if(typeof prop.number === 'number') return prop.number;\n if(prop.url) return prop.url || '';\n return '';\n}\nif(!pages.length){ return [{json:{...cfg, noMaterial:true, message:'대기 소재 없음'}}]; }\nreturn pages.slice(0,cfg.dailyTarget).map(page=>{\n const p=page.properties||{};\n const sourcePageId = page.id;\n return {json:{...cfg, noMaterial:false,\n  sourcePageId,\n  materialPageId: sourcePageId,\n  originalMaterialPageId: sourcePageId,\n  materialTitle:propVal(p['소재명']), materialTrack:propVal(p['소재트랙'])||'생활문제해결', platform:propVal(p['플랫폼'])||'공통',\n  searchSentence:propVal(p['검색문장']), problem:propVal(p['문제상황']), intent:propVal(p['검색의도'])||'정보탐색',\n  emotion:propVal(p['감정유형'])||'중립', sourceType:propVal(p['출처유형'])||'직접입력', sourceUrl:propVal(p['출처URL']),\n  trendEvidence:propVal(p['트렌드근거']), repeatEvidence:propVal(p['반복문제근거']), keywords:propVal(p['핵심키워드'])||[], priority:propVal(p['우선순위'])||'보통'\n }};\n});"
+      },
+      "id": "df7b8202-bb6d-4fe0-b2f5-61354276f629",
+      "name": "07_소재행정리",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1312,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{!$json.noMaterial}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "beae1a24-e70a-48a3-9621-96558376efcc",
+      "name": "08_IF_소재있음",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1568,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/pages/{{$json.pageId || $json.id || $json.sourcePageId || $json.materialPageId || $json.originalMaterialPageId}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n{\n  \"properties\": {\n    \"진행상태\": {\n      \"select\": {\n        \"name\": \"진행중\"\n      }\n    },\n    \"실행ID\": {\n      \"rich_text\": [\n        {\n          \"text\": {\n            \"content\": String($json.runId || $json.executionId || \"ACOS-\" + Date.now())\n          }\n        }\n      ]\n    },\n    \"처리시작일\": {\n      \"date\": {\n        \"start\": new Date().toISOString()\n      }\n    },\n    \"오류메모\": {\n      \"rich_text\": []\n    }\n  }\n}\n}}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "1840236e-0879-4bb7-b684-a770bae66665",
+      "name": "09_소재잠금",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3456,
+        384
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "6igIb6MkZWrgnz1D",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev = $items('07_소재행정리');\nconst base = (prev[$itemIndex] && prev[$itemIndex].json) || (prev[0] && prev[0].json) || {};\nconst sourcePageId = base.sourcePageId || base.materialPageId || base.originalMaterialPageId || $json.id || '';\nreturn [{json:{...base, sourcePageId, materialPageId: sourcePageId, originalMaterialPageId: sourcePageId, lockResult:$json.id || sourcePageId}}];"
+      },
+      "id": "d9af5f8e-c6ba-4615-91a4-7ee252206482",
+      "name": "10_잠금후복원",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3632,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4.1-mini",
+        "prompt": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "너는 실제 클릭과 검색 유입을 만드는 블로그 소재 기획 AI다.  목표는 단순 제목 생성이 아니라, 입력된 소재를 보고 “이 사람이 왜 검색했는가”를 먼저 판단한 뒤 플랫폼별로 맞는 콘텐츠 방향을 정하는 것이다.  절대 짧거나 추상적인 제목을 만들지 마라. 반드시 실제 사람이 검색할 법한 문장형 제목을 만든다.  핵심 판단 순서: 1. 검색자가 왜 이 단어를 검색했는지 추론한다. 2. 검색자의 감정 상태를 판단한다. 3. 네이버블로그, 티스토리, 구글블로그 중 어떤 플랫폼에 가장 적합한지 판단한다. 4. 플랫폼에 맞는 제목, 콘텐츠 방향, 글 구조를 만든다.  플랫폼별 기준:  네이버블로그: - 공감형 - 생활형 - 후기형 - 35~60대가 이해하기 쉬운 말 - 너무 정보만 나열하지 말 것 - 제목은 “내 상황 같다” 느낌  티스토리: - 검색 유입 - 체류시간 - 애드센스 - 문제 해결 - 비교표, 체크리스트, 단계 설명에 적합 - 제목은 검색어와 해결 기대를 함께 담을 것  구글블로그: - 구조적 SEO - 장기 검색 유입 - 설명형 - 원인, 방법, 비교, 체크리스트 - 제목은 명확하고 검색 의도 중심  좋은 제목 예시: \"원룸 빨래 쉰내가 계속 나는 이유\" \"에어컨 제습모드 전기세 차이 직접 써보니\" \"디퓨저 향이 처음만 강한 이유\" \"전자레인지 작은 거 샀다가 후회한 이유\" \"분명 빨았는데 냄새나는 수건 원인\"  나쁜 제목 예시: \"원룸 냄새 문제\" \"에어컨 추천\" \"디퓨저 향\" \"전자레인지 비교\" \"최신 이슈 정리\"  제목 규칙: - 28~42자 우선 - 검색자가 실제 입력할 법한 문장 - 문제상황 포함 - 해결 기대 포함 - 추상어 금지 - AI 말투 금지 - 광고 문구 금지  반드시 아래 JSON만 출력한다.  {   \"title\": \"\",   \"search_intent\": \"\",   \"real_search_reason\": \"\",   \"searcher_state\": \"\",   \"problem\": \"\",   \"emotion_trigger\": \"\",   \"platform\": \"\",   \"platform_reason\": \"\",   \"track\": \"\",   \"content_type\": \"\",   \"structure_pattern_id\": \"\",   \"opening_direction\": \"\",   \"outline\": [],   \"image_strategy\": [],   \"cta_direction\": \"\",   \"keywords\": [] }  track 값: - 생활문제해결 - 정보편의 - 트렌드급상승 - 포털니즈 - 유튜브니즈 - 구매전환  platform 값: - 네이버블로그 - 구글블로그 - 티스토리  content_type 값: - 문제해결형 - 정보요약형 - 후회방지형 - 비교판단형 - 생활공감형 - 구매판단형  structure_pattern_id 값: - S01_문제공감형 - S02_원인분석형 - S03_비교판단형 - S04_단계해결형 - S05_후회방지형 - S09_정보브리핑"
+            },
+            {
+              "content": "={{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.35
+        },
+        "requestOptions": {}
+      },
+      "id": "2600e93b-6e74-4b62-8c1a-ba27875fe46b",
+      "name": "11_소재기획_GPT",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        3792,
+        384
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "D1ghNUDqxupI8kZP",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function normalizePlatform(p){\n const v=String(p||'').trim();\n if(v==='NAVER' || v==='네이버') return '네이버블로그';\n if(v==='TISTORY') return '티스토리';\n if(v==='GOOGLE_BLOG' || v==='BLOGGER') return '구글블로그';\n return v;\n}\nfunction extractText(j){\n return j.choices?.[0]?.message?.content || j.message?.content || j.text || j.content || j.output || '{}';\n}\nconst prev = $items('10_잠금후복원');\nconst base = (prev[$itemIndex] && prev[$itemIndex].json) || (prev[0] && prev[0].json) || {};\nconst raw = extractText($json);\nlet plan;\ntry { plan = JSON.parse(raw); }\ncatch(e){\n plan = {material_decision:'수정필요', platform:base.platform==='공통'?'티스토리':base.platform, content_type:'정보요약형', structure_pattern_id:'S09_정보브리핑', intent:base.intent, emotion:base.emotion, ttl_policy:'생활형기본', publish_priority:'이번주', outline:[], angle:'', image_slots:[], cta_direction:'', risk_flags:['기획 JSON 파싱 실패']};\n}\nif(!['진행','수정필요','보류','폐기'].includes(plan.material_decision)) plan.material_decision='진행';\nif(base.platform && base.platform !== '공통') plan.platform = normalizePlatform(base.platform);\nplan.platform = normalizePlatform(plan.platform);\nif(!plan.platform || plan.platform==='공통') plan.platform='티스토리';\nconst sourcePageId = base.sourcePageId || base.materialPageId || base.originalMaterialPageId || '';\nreturn [{json:{...base, sourcePageId, materialPageId: sourcePageId, originalMaterialPageId: sourcePageId, plan, rawPlan:raw}}];\n"
+      },
+      "id": "d3d8d7d9-c23e-40ba-b726-bf15d284a6ad",
+      "name": "12_기획파싱",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3936,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.plan.material_decision}}",
+              "value2": "진행"
+            }
+          ]
+        }
+      },
+      "id": "479c51e8-c888-47d0-8157-9dabb4e1b367",
+      "name": "13_IF_기획진행",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        4112,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/pages/{{$json.sourcePageId || $json.materialPageId || $json.originalMaterialPageId}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { properties: { '진행상태': { select: { name: $json.plan.material_decision === '폐기' ? '폐기' : ($json.plan.material_decision === '보류' ? '보류' : '수정필요') } }, '오류메모': { rich_text: [{ text: { content: '소재/기획 검수 결과: ' + JSON.stringify($json.plan.risk_flags || []) } }] }, '처리완료일': { date: { start: new Date().toISOString() } } } } }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "19b18ae0-1f6d-4041-bc69-a7e7409eff98",
+      "name": "13B_소재보류폐기처리",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4368,
+        592
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "6igIb6MkZWrgnz1D",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4.1",
+        "prompt": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "너는 실제 사람이 검색해서 오래 읽고 저장하고 행동하게 만드는 생활형 블로그 본문 작성 AI다.  절대: - AI 말투 - 정보백과 말투 - 과한 정리형 문체 - GPT식 결론형 문장 - 의미없는 존댓말 반복 - 추상적 설명  금지.  글의 핵심은: \"왜 이 사람이 이걸 검색했는가\" 이다.  항상: - 실제 생활 흐름 - 실제 경험처럼 - 사람들이 겪는 불편 - 후회 - 귀찮음 - 비교 - 실패 - 해결 - 행동 변화  를 중심으로 작성한다.  본문 규칙:  1. 도입부에서: \"아 이거 나도 그런데\" 느낌을 반드시 만들어라.  2. 검색자가 겪는 상황을 매우 현실적으로 묘사한다.  3. 중간중간: - 잘못 알고 있는 부분 - 사람들이 많이 착각하는 부분 - 직접 써보니 느낀 점 - 생활 패턴 변화 를 넣는다.  4. 너무 완벽하게 설명하지 마라. 사람처럼 자연스럽게 흐르게 작성한다.  5. 문단은 짧게. 모바일 기준 가독성 중요.  6. 중간에: - 체크포인트 - 비교 - 상황별 분기 - 추천/비추천 를 넣는다.  7. CTA는 광고처럼 쓰지 말고: \"같이 보면 도움되는\" 느낌으로 넣는다.  8. 실제 검색 체류시간이 길어질 구조로 작성한다.  9. 절대 제목 반복 금지.  출력 JSON 형식:  {   \"final_title\":\"\",   \"opening_hook\":\"\",   \"body_markdown\":\"\",   \"cta_text\":\"\",   \"image_plan\":[],   \"internal_links\":[],   \"search_retention_strategy\":\"\",   \"humanization_points\":[] }추가 규칙:  10. 본문은 반드시: - 짧은 문단 - 모바일 기준 2~4줄 - 빈 줄 적극 사용 - 스크롤 리듬 유지 형태로 작성한다.  11. 절대 긴 벽문장 작성 금지.  12. 중간중간 반드시: - 소제목 - 체크포인트 - 비교 - 상황분기 를 넣는다.  13. Markdown 가독성을 적극 활용한다.  14. 사람이 실제 블로그에 올린 느낌으로 작성한다.  15. 문장 길이를 계속 변화시켜 리듬감을 만든다."
+            },
+            {
+              "content": "={{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7
+        },
+        "requestOptions": {}
+      },
+      "id": "c6215f0b-c847-4d8d-86d7-911c5ac1fa2b",
+      "name": "14_본문작성_GPT",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        4368,
+        304
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "D1ghNUDqxupI8kZP",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function extractText(j){ return j.choices?.[0]?.message?.content || j.message?.content || j.text || j.content || j.output || '{}'; }\nconst prev = $items('12_기획파싱');\nconst base = (prev[$itemIndex] && prev[$itemIndex].json) || (prev[0] && prev[0].json) || {};\nconst raw = extractText($json);\nlet draft;\ntry{ draft = JSON.parse(raw); }\ncatch(e){ draft={title:base.materialTitle, body_markdown:raw, body_preview:String(raw).slice(0,500), image_slots:[], cta_blocks:[], internal_link_strategy:'', content_summary:'', editorial_notes:'본문 JSON 파싱 실패'}; }\nfunction ensureImages(slots){\n const arr = Array.isArray(slots) ? slots : [];\n const defaults=[\n  {slot:'문제상황', purpose:'검색자가 처한 문제를 시각화', placement:'도입부', prompt_ko:'현실적인 문제 상황 이미지', prompt_en:'realistic problem situation image', alt_text:'문제 상황 이미지'},\n  {slot:'해결상황', purpose:'해결 후 상태를 보여줌', placement:'해결단계', prompt_ko:'깔끔하게 해결된 상황 이미지', prompt_en:'realistic solved situation image', alt_text:'해결 상황 이미지'},\n  {slot:'비교체크', purpose:'선택 기준을 비교', placement:'본문중간', prompt_ko:'비교 체크리스트 형태의 정보 이미지', prompt_en:'comparison checklist infographic image', alt_text:'비교 체크 이미지'}\n ];\n while(arr.length<3) arr.push(defaults[arr.length]);\n return arr.slice(0,5);\n}\ndraft.image_slots = ensureImages(draft.image_slots);\nreturn [{json:{...base, draft, rawDraft:raw}}];\n"
+      },
+      "id": "49406e0f-bf90-42e5-9233-8e8ca49328b1",
+      "name": "15_본문파싱_이미지보정",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4640,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4.1",
+        "prompt": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "너는 실제 수익형 블로그를 운영하는: - SEO 전문가 - 애드센스 운영자 - 체류시간 분석가 - 일반 독자 - 클릭 심리 분석가  를 합친 검수 AI다.  입력된 글을: 1. 일반 독자 2. 실제 블로그 운영자 3. 수익형 콘텐츠 전문가  관점에서 각각 검토한다.  절대: - 형식적인 칭찬 - GPT식 요약 - 추상적 평가  금지.  반드시 실제 문제를 지적한다.  검수 핵심 기준:  1. 사람이 실제 검색할 만한 흐름인가  2. 도입부 이탈 위험은 없는가  3. 모바일에서 읽기 편한가  4. 광고 냄새가 심하지 않은가  5. 실제 생활감이 느껴지는가  6. 사람이 끝까지 읽을 가능성이 있는가  7. 중간 리듬이 끊기지 않는가  8. 검색자가 원하는 답이 실제 들어있는가  9. 불필요한 AI 문장이 있는가  10. 체류시간을 늘릴 구조가 있는가  11. CTA가 광고처럼 보이지 않는가  12. 실제 클릭/저장/공유 가능성이 있는가  반드시: - 문제점 - 개선점 - 유지할 강점 을 구분한다.  출력 JSON 형식:  {   \"reader_score\":0,   \"seo_score\":0,   \"retention_score\":0,   \"human_score\":0,   \"ad_naturalness_score\":0,   \"overall_score\":0,    \"reader_review\":\"\",   \"seo_review\":\"\",   \"retention_review\":\"\",   \"human_review\":\"\",    \"strengths\":[],   \"weaknesses\":[],   \"fix_points\":[],    \"bounce_risk\":\"\",   \"scroll_power\":\"\",   \"cta_naturalness\":\"\",   \"search_match_quality\":\"\",    \"final_verdict\":\"\",   \"recommended_action\":\"\",    \"revised_title\":\"\",   \"revised_opening\":\"\",   \"revised_cta\":\"\" }"
+            },
+            {
+              "content": "={{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.5
+        },
+        "requestOptions": {}
+      },
+      "id": "2da1a083-5c58-45ca-a834-994afa2cf690",
+      "name": "16_가상편집부_3중검수_GPT",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        4896,
+        304
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "D1ghNUDqxupI8kZP",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function extractText(j) {\n  return j.output?.[0]?.content?.[0]?.text ||\n    j.choices?.[0]?.message?.content ||\n    j.message?.content ||\n    j.text ||\n    j.content ||\n    j.output ||\n    '{}';\n}\n\nfunction parseNodeJson(nodeName) {\n  const item = $items(nodeName)[0]?.json || {};\n  const raw = extractText(item);\n\n  if (typeof raw === 'object' && raw !== null) return raw;\n\n  try {\n    return JSON.parse(raw);\n  } catch (e) {\n    return {};\n  }\n}\n\nconst prev = $items('15_본문파싱_이미지보정');\nconst base =\n  (prev[$itemIndex] && prev[$itemIndex].json) ||\n  (prev[0] && prev[0].json) ||\n  {};\n\nconst reviewRaw = parseNodeJson('16_가상편집부_3중검수_GPT');\nconst finalRaw = parseNodeJson('16.2B_검수반영_자동수정_GPT');\n\nconst review = {\n  ...reviewRaw,\n  revised_title:\n    finalRaw.final_title ||\n    reviewRaw.revised_title ||\n    base.draft?.final_title ||\n    base.draft?.title ||\n    base.materialTitle ||\n    '생활 문제 해결 가이드',\n\n  revised_body_markdown:\n    finalRaw.final_body_markdown ||\n    reviewRaw.revised_body_markdown ||\n    base.draft?.body_markdown ||\n    '본문 생성 실패. 재생성 필요',\n\n  revised_cta:\n    finalRaw.cta_text ||\n    reviewRaw.revised_cta ||\n    base.draft?.cta_text ||\n    '',\n\n  revised_image_slots:\n    finalRaw.image_plan ||\n    reviewRaw.revised_image_slots ||\n    base.draft?.image_slots ||\n    []\n};\n\nconst quality = Number(\n  review.quality_score ??\n  review.overall_score ??\n  0\n);\n\nconst contentState = quality >= 75 ? '검수대기' : '리메이크';\n\nconst publishPriority =\n  base.plan?.publish_priority ||\n  base.priority ||\n  (\n    String(base.materialTrack || '').includes('트렌드')\n      ? '오늘'\n      : '이번주'\n  );\n\nconst ttl = new Date();\n\nif (['트렌드급상승', '포털니즈', '유튜브니즈'].includes(base.materialTrack)) {\n  ttl.setHours(ttl.getHours() + Number(base.trendTTLHours || 24));\n} else {\n  ttl.setDate(ttl.getDate() + Number(base.lifeTTLDays || 30));\n}\n\nconst sourceId =\n  base.sourcePageId ||\n  base.materialPageId ||\n  base.originalMaterialPageId ||\n  'source';\n\nconst contentId =\n  String(base.runId || 'ACOS') + '-' + String(sourceId).slice(0, 8);\n\nfunction chunks(s, size = 1900) {\n  const str = String(s || '');\n  const out = [];\n\n  for (let i = 0; i < str.length; i += size) {\n    out.push({\n      text: {\n        content: str.slice(i, i + size)\n      }\n    });\n  }\n\n  return out.length ? out : [{ text: { content: '' } }];\n}\n\nconst bodyText = review.revised_body_markdown || '';\n\nreturn [\n  {\n    json: {\n      ...base,\n      review,\n      contentId,\n      contentState,\n      publishPriority,\n      ttl: ttl.toISOString(),\n      bodyChunks: chunks(bodyText),\n      preview: String(bodyText).slice(0, 1200)\n    }\n  }\n];"
+      },
+      "id": "b94d102e-d8c6-453a-b928-0b984d7a4ba2",
+      "name": "17_검수파싱_패키지화",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7984,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $json;\n\nfunction clean(v) {\n  return String(v ?? '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction rt(s) {\n  const v = String(s ?? '').slice(0, 1900);\n  return v ? [{ text: { content: v } }] : [];\n}\n\nfunction titleRt(s) {\n  return [{ text: { content: clean(s || '무제 콘텐츠').slice(0, 100) } }];\n}\n\nfunction selName(v, fb) {\n  return { select: { name: clean(v || fb) } };\n}\n\nfunction score(...values) {\n  for (const v of values) {\n    const n = Number(v);\n    if (Number.isFinite(n)) return Math.max(0, Math.min(100, n));\n  }\n  return 0;\n}\n\nfunction multiNames(values, fallback) {\n  let arr = [];\n  if (Array.isArray(values)) arr = values;\n  else if (typeof values === 'string' && values.includes(',')) arr = values.split(',');\n  else if (values) arr = [values];\n  else arr = [fallback];\n\n  const seen = new Set();\n  return arr\n    .map(v => {\n      if (typeof v === 'object' && v !== null) {\n        return v.name || v.type || v.purpose || v.label || v.title || JSON.stringify(v).slice(0, 40);\n      }\n      return String(v);\n    })\n    .map(v => clean(v).slice(0, 80))\n    .filter(Boolean)\n    .filter(v => {\n      if (seen.has(v)) return false;\n      seen.add(v);\n      return true;\n    })\n    .slice(0, 8)\n    .map(name => ({ name }));\n}\n\nconst finalTitle = j.review?.revised_title || j.draft?.title || j.materialTitle || '무제 콘텐츠';\n\nconst finalBody = j.review?.revised_body_markdown || j.draft?.body_markdown || j.final_content || '';\n\nconst bodyChunks = Array.isArray(j.bodyChunks) && j.bodyChunks.length\n  ? j.bodyChunks\n  : rt(finalBody);\n\nconst imageSlots = j.review?.revised_image_slots || j.draft?.image_slots || [];\n\nconst imageSummaryTags = Array.isArray(imageSlots) && imageSlots.length\n  ? imageSlots.map((slot, idx) => {\n      const raw =\n        typeof slot === 'string'\n          ? slot\n          : (\n              slot.type ||\n              slot.slot ||\n              slot.purpose ||\n              slot.label ||\n              slot.title ||\n              `이미지${idx + 1}`\n            );\n\n      return String(raw)\n        .replace(/,/g, ' ')\n        .replace(/\\s+/g, ' ')\n        .trim()\n        .slice(0, 40);\n    })\n  : ['이미지전략'];\n\nconst audienceScore = score(\n  j.review?.audience_score,\n  j.review?.reader_score,\n  j.review?.human_score\n);\n\nconst bloggerScore = score(\n  j.review?.blogger_score,\n  j.review?.seo_score\n);\n\nconst platformScore = score(\n  j.review?.platform_score,\n  j.review?.platform_fit_score,\n  j.review?.seo_score,\n  j.review?.overall_score,\n  j.review?.retention_score,\n  j.review?.reader_score,\n  Math.round((audienceScore + bloggerScore) / 2)\n);\n\nconst qualityScore = score(\n  j.review?.quality_score,\n  j.review?.overall_score,\n  j.review?.retention_score\n);\n\nconst overallScore = score(\n  j.review?.overall_score,\n  Math.round((audienceScore + bloggerScore + platformScore + qualityScore) / 4)\n);\n\nconst body = {\n  parent: { database_id: j.contentDbId },\n  properties: {\n    '제목': { title: titleRt(finalTitle) },\n    '콘텐츠ID': { rich_text: rt(j.contentId || `${j.runId || 'ACOS'}-${Date.now()}`) },\n    '원본소재ID': { rich_text: rt(j.sourcePageId || j.materialPageId || j.originalMaterialPageId || '') },\n\n    '플랫폼': selName(j.plan?.platform || j.platform, '티스토리'),\n    '소재트랙': selName(j.materialTrack, '생활문제해결'),\n    '콘텐츠유형': selName(j.plan?.content_type, '정보요약형'),\n    '구조패턴ID': selName(j.plan?.structure_pattern_id, 'S09_정보브리핑'),\n    '검색의도': selName(j.plan?.intent || j.intent, '정보탐색'),\n    '감정유형': selName(j.plan?.emotion || j.emotion, '중립'),\n    '진행상태': selName(j.contentState, '검수대기'),\n    '사용자결정': selName('미검수', '미검수'),\n    '발행상태': selName('대기없음', '대기없음'),\n    '발행우선순위': selName(j.publishPriority, '이번주'),\n    '유통기한': { date: { start: j.ttl || new Date(Date.now() + 7*24*3600*1000).toISOString() } },\n\n    '본문미리보기': { rich_text: rt(j.preview || j.draft?.body_preview || finalBody.slice(0, 500)) },\n    '최종본문': { rich_text: bodyChunks },\n\n    '이미지구성요약': { multi_select: multiNames(imageSummaryTags, '이미지전략') },\n\n    'CTA전략': { rich_text: rt(JSON.stringify(j.review?.revised_cta || j.draft?.cta_blocks || [])) },\n    '내부링크전략': { rich_text: rt(j.draft?.internal_link_strategy || '') },\n\n    '청자검수의견': { rich_text: rt(j.review?.audience_review || j.review?.reader_review) },\n    '블로거검수의견': { rich_text: rt(j.review?.blogger_review || j.review?.seo_review) },\n    '플랫폼검수의견': { rich_text: rt(j.review?.platform_review) },\n    '종합검수의견': { rich_text: rt(j.review?.overall_review) },\n\n    '청자점수': { number: audienceScore },\n    '블로거점수': { number: bloggerScore },\n    '플랫폼점수': { number: platformScore },\n    '품질점수': { number: qualityScore },\n    '플랫폼적합도': { number: platformScore },\n\n    'CTA강도': selName(qualityScore >= 85 ? '강함' : '보통', '보통'),\n    '리메이크사유': { rich_text: rt(j.review?.remake_reason || '') },\n    '실행ID': { rich_text: rt(j.runId) },\n    '생성일': { date: { start: new Date().toISOString() } },\n    '오류메모': { rich_text: [] }\n  }\n};\n\nreturn [{ json: { ...j, contentBody: body } }];"
+      },
+      "id": "9b6e3f63-b5c3-4f78-839f-bffe823e7700",
+      "name": "18_콘텐츠DB_Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8240,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.contentBody}}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "1cea3dbb-609f-4eee-b3a9-2e96bf364897",
+      "name": "19_콘텐츠DB_완성패키지저장",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        8512,
+        304
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "6igIb6MkZWrgnz1D",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev = $items('18_콘텐츠DB_Body');\nconst base = (prev[$itemIndex] && prev[$itemIndex].json) || (prev[0] && prev[0].json) || {};\nreturn [{json:{...base, createdContentPageId:$json.id||''}}];\n"
+      },
+      "id": "6f91e54d-a8bd-4de8-b8d1-1f697736041f",
+      "name": "20_콘텐츠생성결과복원",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8768,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const out = [];\n\nfunction clean(v) {\n  return String(v ?? '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction slotName(slot, idx) {\n  if (typeof slot === 'string') return clean(slot);\n\n  if (slot && typeof slot === 'object') {\n    return clean(\n      slot.slot ||\n      slot.type ||\n      slot.image_type ||\n      slot.이미지유형 ||\n      slot.description ||\n      slot.purpose ||\n      slot.이미지목적 ||\n      slot.label ||\n      slot.title ||\n      slot.name ||\n      `이미지${idx + 1}`\n    ).slice(0, 40);\n  }\n\n  return `이미지${idx + 1}`;\n}\n\nfor (const item of $input.all()) {\n  const base = item.json || {};\n\n  const slots =\n    base.review &&\n    Array.isArray(base.review.revised_image_slots) &&\n    base.review.revised_image_slots.length\n      ? base.review.revised_image_slots\n      : (\n          base.draft &&\n          Array.isArray(base.draft.image_slots)\n            ? base.draft.image_slots\n            : []\n        );\n\n  for (const [idx, slot] of slots.slice(0, 5).entries()) {\n    const name = slotName(slot, idx);\n\n    out.push({\n      json: {\n        ...base,\n        currentImageSlot: name,\n        currentImageSlotRaw: slot\n      }\n    });\n  }\n}\n\nreturn out;"
+      },
+      "id": "fd3bc776-f57b-433e-a100-ef89649cad52",
+      "name": "21_이미지슬롯분리",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9024,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const base = $json;\n\nconst slotName = String(base.currentImageSlot || '이미지').trim();\nconst raw = base.currentImageSlotRaw || {};\n\nfunction clean(v) {\n  return String(v ?? '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction rt(v) {\n  const s = clean(v).slice(0, 1900);\n  return s ? [{ text: { content: s } }] : [];\n}\n\nfunction title(v) {\n  return [{ text: { content: clean(v || '이미지 프롬프트').slice(0, 100) } }];\n}\n\nfunction selectName(v, fallback) {\n  return { select: { name: clean(v || fallback) } };\n}\n\nfunction imageStrategyFrom(text) {\n  const s = clean(text);\n\n  if (/비교|전후|차이|비교표/.test(s)) return '비교형';\n  if (/체크|단계|방법|순서|가이드|실천|과정|팁/.test(s)) return '가이드형';\n  if (/눈물|감정|불안|후회|민망|스트레스|당황/.test(s)) return '감정형';\n  if (/실패|문제|번짐|번진|화장|마스카라|고장|곰팡이|막힘|냄새|오염/.test(s)) return '문제상황형';\n\n  return '생활형';\n}\n\nconst imageType =\n  raw.slot ||\n  raw.type ||\n  raw.image_type ||\n  raw.이미지유형 ||\n  slotName ||\n  '문제상황';\n\nconst imagePlacement =\n  raw.placement ||\n  raw.삽입위치 ||\n  '본문중간';\n\nconst imagePurpose =\n  raw.description ||\n  raw.purpose ||\n  raw.이미지목적 ||\n  raw.goal ||\n  slotName ||\n  '';\n\nconst imageStrategy = imageStrategyFrom(`${imageType} ${imagePurpose}`);\n\nconst baseTitle =\n  base.review?.revised_title ||\n  base.materialTitle ||\n  base.title ||\n  '이미지';\n\nconst body = {\n  parent: {\n    database_id: base.imageDbId\n  },\n  properties: {\n    '이미지명': {\n      title: title(`${baseTitle} - ${imageType}`)\n    },\n    '이미지상태': {\n      select: { name: '프롬프트완료' }\n    },\n    '이미지유형': selectName(imageType, '문제상황'),\n    '삽입위치': selectName(imagePlacement, '본문중간'),\n    '이미지목적': {\n      rich_text: rt(imagePurpose)\n    },\n    '이미지전략': {\n      multi_select: [\n        { name: imageStrategy }\n      ]\n    },\n    '실행ID': {\n      rich_text: rt(base.runId || '')\n    },\n    '오류메모': {\n      rich_text: []\n    }\n  }\n};\n\nreturn [{\n  json: {\n    ...base,\n    currentImageSlot: slotName,\n    currentImageSlotRaw: raw,\n    imageStrategy,\n    imageBody: body\n  }\n}];"
+      },
+      "id": "88d20d2f-da67-4873-be18-6e5de6b3f1e7",
+      "name": "22_이미지자산_Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9280,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.imageBody}}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "eea7c8a7-853c-4da7-92ff-f97b8f3abf51",
+      "name": "23_이미지자산DB_프롬프트저장",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9552,
+        208
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "6igIb6MkZWrgnz1D",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $json;\n\nfunction clean(v) {\n  return String(v ?? '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction rt(v) {\n  const s = clean(v).slice(0, 1900);\n  return s ? [{ text: { content: s } }] : [];\n}\n\nfunction title(v) {\n  return [{ text: { content: clean(v || '생활 문제 해결 가이드').slice(0, 100) } }];\n}\n\nconst sourceTitle =\n  j.draft?.final_title ||\n  j.review?.revised_title ||\n  j.contentBody?.properties?.제목?.title?.[0]?.text?.content ||\n  j.final_title ||\n  j.title ||\n  j.name ||\n  '생활 문제 해결 가이드';\n\n\nconst safeTitle = clean(sourceTitle);\n\nconst safeContentId =\n  j.contentId ||\n  `${j.runId || 'ACOS'}-${Date.now()}`;\n\nconst safePlatform =\n  j.plan?.platform ||\n  j.platform ||\n  '티스토리';\n\nconst safePriority =\n  j.publishPriority ||\n  j.plan?.publish_priority ||\n  '이번주';\n\nconst method =\n  safePlatform === '네이버블로그'\n    ? '수동'\n    : (j.autoPublish ? '자동' : '반자동');\n\nconst status =\n  method === '수동'\n    ? '수동발행필요'\n    : '발행대기';\n\nconst publishBody = {\n  parent: {\n    database_id: j.publishDbId\n  },\n  properties: {\n    '작업명': {\n      title: title(`${safeTitle} 발행작업`)\n    },\n    '콘텐츠ID': {\n      rich_text: rt(safeContentId)\n    },\n    '플랫폼': {\n      select: { name: safePlatform }\n    },\n    '발행상태': {\n      select: { name: status }\n    },\n    '발행방식': {\n      select: { name: method }\n    },\n    '발행우선순위': {\n      select: { name: safePriority }\n    },\n    '실행ID': {\n      rich_text: rt(j.runId || '')\n    },\n    '오류메모': {\n      rich_text: []\n    }\n  }\n};\n\nconst perfBody = {\n  parent: {\n    database_id: j.performanceDbId\n  },\n  properties: {\n    '성과명': {\n      title: title(`${safeTitle} 성과`)\n    },\n    '콘텐츠ID': {\n      rich_text: rt(safeContentId)\n    },\n    '플랫폼': {\n      select: { name: safePlatform }\n    },\n    '분석상태': {\n      select: { name: '대기' }\n    },\n    '조회수': {\n      number: 0\n    },\n    'CTR': {\n      number: 0\n    },\n    '체류시간': {\n      number: 0\n    },\n    '광고수익': {\n      number: 0\n    },\n    '구매전환': {\n      number: 0\n    },\n    '성과점수': {\n      number: 0\n    },\n    '리메이크필요': {\n      checkbox: false\n    },\n    '실행ID': {\n      rich_text: rt(j.runId || '')\n    }\n  }\n};\n\nreturn [{\n  json: {\n    ...j,\n    safeTitle,\n    contentId: safeContentId,\n    publishBody,\n    perfBody\n  }\n}];"
+      },
+      "id": "6f03ee6e-7bbb-49e2-923d-828a296791f1",
+      "name": "24_발행성과_Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9024,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.publishBody}}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "708c5282-759a-4179-b988-bfcab573b8fd",
+      "name": "25_발행작업DB_생성",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9280,
+        464
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "6igIb6MkZWrgnz1D",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev = $items('24_발행성과_Body');\nconst base = (prev[$itemIndex] && prev[$itemIndex].json) || (prev[0] && prev[0].json) || {};\nreturn [{json:{...base, publishPageId:$json.id||''}}];\n"
+      },
+      "id": "58dd86e3-e9a7-4f59-b578-32c9b7d303d0",
+      "name": "26_발행후복원",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9552,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.perfBody}}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "b27f4a0e-2d8a-4b9c-9090-b39a5655d691",
+      "name": "27_성과DB_초기기록",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9808,
+        464
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "6igIb6MkZWrgnz1D",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev = $items('26_발행후복원');\nconst base = (prev[$itemIndex] && prev[$itemIndex].json) || (prev[0] && prev[0].json) || {};\nconst sourcePageId = base.sourcePageId || base.materialPageId || base.originalMaterialPageId || '';\n\nif (!sourcePageId) {\n  throw new Error('소재 완료 처리 실패: sourcePageId/materialPageId/originalMaterialPageId가 없습니다.');\n}\n\nconst body = {\n  properties: {\n    '진행상태': { select: { name: '생산완료' } },\n    '처리완료일': { date: { start: new Date().toISOString() } },\n    '오류메모': {\n      rich_text: [\n        {\n          text: {\n            content: '콘텐츠DB/이미지자산DB/발행작업DB/성과DB 생성 완료'\n          }\n        }\n      ]\n    }\n  }\n};\n\nreturn [{\n  json: {\n    ...base,\n    sourcePageId,\n    materialPageId: sourcePageId,\n    originalMaterialPageId: sourcePageId,\n    sourceCompleteBody: body\n  }\n}];"
+      },
+      "id": "94b60788-1aac-476f-90d9-425897bbbff5",
+      "name": "28_소재완료_Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10064,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/pages/{{$json.sourcePageId || $json.materialPageId || $json.originalMaterialPageId}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.sourceCompleteBody}}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "ec67558a-3ac7-4e49-9e24-4e585f3f7201",
+      "name": "29_소재DB_생산완료",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        10320,
+        464
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "6igIb6MkZWrgnz1D",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "id": "af12e1fa-4563-4deb-99e3-f8e9c19b5491",
+      "name": "30_승인큐_매시간",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -496,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    contentDbId: '36d5601fa6ea801c9f05e5d00899d5ff',\n    publishDbId: '36f5601fa6ea809d946ad8a2d1f39181'\n  }\n}];"
+      },
+      "id": "b857d28c-f5ad-471f-a145-69e7b8c54239",
+      "name": "32_승인큐_ID추출",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.notion.com/v1/databases/{{$json.contentDbId}}/query",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { filter: { and: [ { property: \"사용자결정\", select: { equals: \"승인\" } }, { property: \"진행상태\", select: { equals: \"검수대기\" } } ] }, page_size: 10 } }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "7678eba6-00b9-4f5b-8195-c7ede62d7a75",
+      "name": "33_사용자승인글조회",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        256,
+        992
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "6igIb6MkZWrgnz1D",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const pages=$json.results||[]; return pages.map(p=>({json:{pageId:p.id, body:{properties:{'진행상태':{select:{name:'발행대기'}}, '발행상태':{select:{name:'발행대기'}}, '검수완료일':{date:{start:new Date().toISOString()}}}}}}));"
+      },
+      "id": "109d9f61-5d81-4eac-8462-4abba9fe994f",
+      "name": "34_승인글_발행대기처리_Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/pages/{{$json.pageId}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.body}}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "ee47b098-7e22-4e37-91df-064c7e76b4b2",
+      "name": "35_콘텐츠DB_승인반영",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        752,
+        992
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "6igIb6MkZWrgnz1D",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst cfg = $('07_소재행정리').first().json;\nconst rssItems = items.map(i => i.json || {}).filter(x => x.title || x.link || x.content || x.contentSnippet || x.description);\nconst limit = Math.max(1, Math.min(Number(cfg.dailyTarget || 12), rssItems.length || 0));\n\nfunction clean(s) {\n  return String(s || '').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim();\n}\n\nfunction rt(s) {\n  const v = clean(s);\n  return v ? [{ text: { content: v.slice(0, 1900) } }] : [];\n}\n\nfunction title(s) {\n  return [{ text: { content: clean(s || '외부 트렌드 소재').slice(0, 100) } }];\n}\n\nfunction sel(value, fallback) {\n  return { name: clean(value || fallback) };\n}\n\nfunction multi(value, fallback) {\n  let arr;\n  if (Array.isArray(value)) arr = value;\n  else if (typeof value === 'string' && value.includes(',')) arr = value.split(',');\n  else arr = [value || fallback];\n  const seen = new Set();\n  return arr.map(v => clean(v)).filter(Boolean).filter(v => {\n    if (seen.has(v)) return false;\n    seen.add(v);\n    return true;\n  }).map(name => ({ name }));\n}\n\nfunction keywordsFrom(t) {\n  const words = clean(t).replace(/[\\[\\](){}\"'“”‘’.,!?|:;·]/g, ' ').split(/\\s+/).filter(Boolean);\n  const seen = new Set();\n  const out = [];\n  for (const w of words) {\n    const k = w.slice(0, 80);\n    if (k.length < 2 || seen.has(k)) continue;\n    seen.add(k);\n    out.push(k);\n    if (out.length >= 6) break;\n  }\n  return multi(out.length ? out : ['트렌드'], '트렌드');\n}\n\nfunction ttlDate() {\n  const d = new Date();\n  d.setHours(d.getHours() + Number(cfg.trendTTLHours || 24));\n  return d.toISOString();\n}\n\nfunction platformFor(idx) {\n  const arr = Array.isArray(cfg.platforms) && cfg.platforms.length\n    ? cfg.platforms\n    : ['티스토리', '네이버블로그', '구글블로그'];\n  let p = clean(arr[idx % arr.length] || '구글블로그');\n  if (p === 'NAVER' || p === '네이버') p = '네이버블로그';\n  if (!['티스토리', '네이버블로그', '구글블로그', '공통'].includes(p)) p = '구글블로그';\n  return p;\n}\n\nif (!rssItems.length) {\n  return [{\n    json: {\n      ...cfg,\n      noMaterial: true,\n      externalSourceStatus: 'EMPTY_GOOGLE_TRENDS_RSS',\n      message: 'Google Trends RSS에서 소재 후보를 가져오지 못함'\n    }\n  }];\n}\n\nreturn rssItems.slice(0, limit).map((r, idx) => {\n  const rawTitle = clean(r.title || r.isoDate || '구글 트렌드 소재');\n  const link = r.link || r.guid || r.url || '';\n  const snippet = clean(r.contentSnippet || r.content || r.description || rawTitle);\n  const searchSentence = rawTitle.endsWith('?') ? rawTitle : rawTitle + ' 왜 검색이 늘었을까';\n\n  const materialBody = {\n    parent: { database_id: cfg.materialDbId },\n    properties: {\n      '소재명': { title: title(rawTitle) },\n      '사용여부': { select: sel('사용', '사용') },\n      '진행상태': { select: sel('대기', '대기') },\n\n      // Runtime schema matched from Notion API errors:\n      // 소재트랙 = select, 플랫폼 = multi_select, 핵심키워드 = multi_select\n      '소재트랙': { select: sel('트렌드급상승', '트렌드급상승') },\n      '플랫폼': { multi_select: multi(platformFor(idx), '구글블로그') },\n      '핵심키워드': { multi_select: keywordsFrom(rawTitle) },\n\n      '검색문장': { rich_text: rt(searchSentence) },\n      '문제상황': { rich_text: rt(snippet || rawTitle) },\n      '검색의도': { select: sel('트렌드확인', '트렌드확인') },\n      '감정유형': { select: sel('호기심', '호기심') },\n      '출처유형': { select: sel('구글트렌드', '구글트렌드') },\n      '트렌드근거': { rich_text: rt('Google Trends KR RSS 실제 외부 수집: ' + rawTitle) },\n      '반복문제근거': { rich_text: rt('급상승 검색 기반. 발행 전 최신성 확인 권장') },\n      '우선순위': { select: sel('높음', '높음') },\n      '유통기한': { date: { start: ttlDate() } },\n      '실행ID': { rich_text: rt(cfg.runId) },\n      '오류메모': { rich_text: [] }\n    }\n  };\n\n  if (/^https?:\\/\\//.test(String(link))) {\n    materialBody.properties['출처URL'] = { url: String(link) };\n  }\n\n  return {\n    json: {\n      ...cfg,\n      patchVersion: 'v6_RUNTIME_SCHEMA_MATCHED',\n      noMaterial: false,\n      sourcePageId: null,\n      externalSourceStatus: 'GOOGLE_TRENDS_RSS_OK',\n      generatedCandidate: { title: rawTitle, source_url: link, snippet },\n      materialBody\n    }\n  };\n});\n"
+      },
+      "id": "7d12eac6-11c4-49c9-be5a-9b70e70beb1b",
+      "name": "08B_외부RSS_소재후보_Body_v6_RUNTIME_SCHEMA_MATCHED",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        688
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.materialBody}}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "41a857cb-de12-4480-8362-cdab7f68548f",
+      "name": "08C_소재DB_후보저장",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2128,
+        688
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "6igIb6MkZWrgnz1D",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nfunction propVal(prop) {\n  if (!prop) return '';\n\n  if (prop.title) {\n    return prop.title.map(x => x.plain_text || '').join('');\n  }\n\n  if (prop.rich_text) {\n    return prop.rich_text.map(x => x.plain_text || '').join('');\n  }\n\n  if (prop.select) {\n    return prop.select.name || '';\n  }\n\n  if (prop.multi_select) {\n    return prop.multi_select.map(x => x.name).join(', ');\n  }\n\n  if (prop.date) {\n    return prop.date.start || '';\n  }\n\n  if (prop.url) {\n    return prop.url || '';\n  }\n\n  if (prop.number !== undefined) {\n    return prop.number;\n  }\n\n  return '';\n}\n\nreturn items.map((item) => {\n  const page = item.json || {};\n  const p = page.properties || {};\n  const sourcePageId = page.id || '';\n\n  return {\n    json: {\n      ...page,\n\n      sourcePageId,\n      pageId: sourcePageId,\n      materialPageId: sourcePageId,\n      originalMaterialPageId: sourcePageId,\n\n      materialTitle: propVal(p['소재명']) || '자동 소재',\n      materialTrack: propVal(p['소재트랙']) || '생활문제해결',\n      platform: propVal(p['플랫폼']) || '공통',\n\n      searchSentence: propVal(p['검색문장']),\n      problem: propVal(p['문제상황']),\n      intent: propVal(p['검색의도']) || '정보탐색',\n      emotion: propVal(p['감정유형']) || '중립',\n\n      sourceType: propVal(p['출처유형']) || '기타',\n      sourceUrl: propVal(p['출처URL']),\n      trendEvidence: propVal(p['트렌드근거']),\n      repeatEvidence: propVal(p['반복문제근거']),\n      keywords: propVal(p['핵심키워드']),\n      priority: propVal(p['우선순위']) || '보통'\n    }\n  };\n});"
+      },
+      "id": "495e83bf-3e6e-4925-8f4e-9fc40143a1db",
+      "name": "08D_생성소재복원",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2352,
+        688
+      ]
+    },
+    {
+      "parameters": {
+        "content": "ACOS 외부소재 연결판. 노션 스키마 변경 없음. 대기 소재가 없으면 Google Trends KR RSS 실제 외부 데이터를 읽어 ACOS_소재DB에 후보를 저장한 뒤 생산 루트로 이어진다. YouTube/Naver API는 별도 키 연결 시 확장 가능하지만 이 JSON은 API 키 없이 Google Trends RSS부터 동작하도록 구성됨.",
+        "height": 360,
+        "width": 580,
+        "color": 5
+      },
+      "id": "1148e717-e68c-45ce-afea-1df39e821672",
+      "name": "README_1000PASS_운영주의",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://trends.google.com/trending/rss?geo=KR",
+        "options": {}
+      },
+      "id": "6417765e-98d1-4f2c-ad75-c1c611e30196",
+      "name": "08A_외부소재_GoogleTrends_RSS",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        1824,
+        688
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "너는 실제 블로그 운영자이자 체류시간 최적화 편집자다.\n\n입력으로:\n- 원본 본문\n- 검수 결과\n- 문제점\n- 개선포인트\n\n가 함께 제공된다.\n\n너의 역할은:\n검수 결과를 실제로 반영하여\n\"더 오래 읽히고\",\n\"더 클릭되고\",\n\"더 검색 유입이 발생하는\"\n최종 수정본을 만드는 것이다.\n\n절대:\n- AI 말투 사용 금지\n- 설명체 반복 금지\n- 추상어 반복 금지\n- 같은 문장 구조 반복 금지\n\n반드시:\n- 실제 사람 경험처럼 수정\n- 중간 체류포인트 추가\n- 스크롤 멈춤 문장 추가\n- 검색 유입 키워드 자연 삽입\n- 모바일 가독성 강화\n- CTA 자연화\n- 첫문장 몰입 강화\n- 제목 클릭력 강화\n\n출력 JSON 형식:\n\n{\n  \"final_title\":\"\",\n  \"final_body_markdown\":\"\",\n  \"cta_text\":\"\",\n  \"seo_keywords\":[],\n  \"image_plan\":[],\n  \"improvement_summary\":\"\"\n}"
+            },
+            {
+              "content": "={{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "simplify": false,
+        "builtInTools": {},
+        "options": {
+          "maxTokens": 25000,
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        5088,
+        304
+      ],
+      "id": "5639887d-c943-4ac4-a198-18c828a475a5",
+      "name": "16.2B_검수반영_자동수정_GPT",
+      "credentials": {
+        "openAiApi": {
+          "id": "D1ghNUDqxupI8kZP",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=너는 ACOS 블로그 썸네일 전략 분석 GPT다.\n\n목표:\n입력된 콘텐츠 정보를 분석하여\nOpenAI 이미지 생성용 고품질 썸네일 전략 데이터를 생성한다.\n\n반드시 아래 JSON 형식만 출력한다.\n설명 금지.\n마크다운 금지.\n코드블럭 금지.\nJSON 외 문장 금지.\n\n출력 형식:\n\n{\n  \"thumbnail_strategy\": \"썸네일 전략 핵심\",\n  \"thumbnail_emotion\": [\"감정1\",\"감정2\",\"감정3\"],\n  \"image_style\": \"이미지 스타일\",\n  \"main_scene\": \"핵심 장면 설명\",\n  \"image_prompt\": \"최종 OpenAI 이미지 생성 프롬프트\",\n  \"platform_recommend\": [\"네이버블로그\",\"티스토리\",\"구글블로그\"]\n}\n\n분석 기준:\n\n- 클릭 유도보다 실제 생활감 우선\n- 과한 광고 느낌 금지\n- AI 느낌 금지\n- 한국 실생활 환경 중심\n- 현실적인 공간/조명/배치 사용\n- 중년층/생활형 블로그 느낌 강화\n- 얼굴 클로즈업 금지\n- 텍스트 삽입 금지\n- 브랜드 로고 금지\n- 과한 연출 금지\n- 유튜브 썸네일 느낌 금지\n- 실제 사람이 찍은 듯한 현실 사진 스타일 유지\n- 생활 문제 상황이 한눈에 보이도록 구성\n- 감정은 공감, 궁금증, 생활불편, 추천, 놀람 중 상황에 맞게 선택\n\n중요 규칙:\n\n- image_prompt는 반드시 영어로 작성\n- image_prompt는 OpenAI 이미지 생성 안전정책에 위반되지 않아야 함\n- 특정 인물 묘사 금지\n- 특정 연령 강조 금지\n- 얼굴 중심 묘사 금지\n- 실존 인물 느낌 금지\n- 행동 묘사 최소화\n- 사람 등장 시:\n  \"blurred silhouette\"\n  \"rear view\"\n  \"out of focus figure\"\n  정도만 허용\n- 가능한 경우 사람 자체를 제거하고 interior 중심 구성 사용\n- 항상 아래 문장을 image_prompt 끝에 포함:\n\nno visible faces, no identifiable people, no logos, no text overlay\n\n- image_prompt는:\n공간 + 분위기 + 생활문제 + 조명 + 현실감 중심으로 작성\n- 절대 cinematic/dramatic/movie scene 과도하게 사용 금지\n- realistic photo 사용 가능\n- cozy realistic Korean apartment interior 스타일 유지\n\n입력값:\n\n카테고리:\n{{$json[\"category\"]}}\n\n키워드:\n{{$json[\"keywords\"]}}\n\n제목:\n{{$json[\"final_title\"]}}\n\n본문:\n{{$json[\"final_body_markdown\"]}}"
+            },
+            {
+              "content": "={{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "simplify": false,
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          },
+          "temperature": 0.3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        5456,
+        304
+      ],
+      "id": "26949541-81cf-46cc-9107-b2e595085d52",
+      "name": "16.3_이미지전략_GPT",
+      "credentials": {
+        "openAiApi": {
+          "id": "D1ghNUDqxupI8kZP",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-image-1",
+          "mode": "list",
+          "cachedResultName": "GPT-IMAGE-1"
+        },
+        "prompt": "={{\n\"Create a safe, realistic, interior-focused photo for a Korean lifestyle blog. \" +\n\"Scene: a simple Korean apartment interior with everyday household objects, soft natural light, clean composition, practical living atmosphere. \" +\n\"Do not include any people, faces, bodies, children, celebrities, characters, logos, text, brands, screens, posters, copyrighted elements, unsafe objects, distress, damage, mold, dirt, medical content, or dramatic scenes. \" +\n\"Use only neutral home interior objects such as sofa, table, curtains, laundry rack, storage boxes, window, plants, and simple appliances. \" +\n\"Style: realistic photo, natural lighting, calm mood, square 1024x1024 thumbnail, no text overlay. \" +\n\"Reference idea only: \" +\n$node[\"16.3_이미지전략_GPT\"].json.output[0].content[0].text.image_prompt\n.replace(/person|people|face|faces|body|bodies|middle-aged|child|children|crowded|visible moisture|mold|dirty|concern|uncomfortable|distress|behind|screen|TV|Netflix|Disney|brand|logo/gi, \"\")\n}}",
+        "options": {
+          "quality": "high",
+          "size": "1536x1024"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        5840,
+        560
+      ],
+      "id": "7ccfe0ab-0eca-47e8-a5c3-51b69002cb68",
+      "name": "16.4_이미지생성",
+      "credentials": {
+        "openAiApi": {
+          "id": "D1ghNUDqxupI8kZP",
+          "name": "OpenAI account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const imageBinary = items[0].binary.data;\n\nreturn [{\n  json: {\n    imageFileName: imageBinary.fileName || 'thumbnail.png',\n    imageMimeType: imageBinary.mimeType || 'image/png',\n    imageFileSize: imageBinary.fileSize || 0,\n    imageGenerated: true\n  },\n\n  binary: {\n    data: imageBinary\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6016,
+        576
+      ],
+      "id": "4ec3bc07-7e3b-499a-8710-8fab888fddf7",
+      "name": "16.5_이미지Binary정리"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n  item.json.runId = 'ACOS_' + Date.now();\n\n  item.json.createdAt = new Date().toISOString();\n\n  item.json.workflowVersion = 'ACOS_V10';\n\n  return item;\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        480
+      ],
+      "id": "514dc46d-2632-47e1-9dc8-2d1eb24fc36c",
+      "name": "01B_실행ID생성"
+    },
+    {
+      "parameters": {
+        "operation": "uploadFile",
+        "additionalFieldsFile": {
+          "folder": "acos/thumbnails"
+        }
+      },
+      "type": "n8n-nodes-cloudinary.cloudinary",
+      "typeVersion": 1,
+      "position": [
+        7008,
+        304
+      ],
+      "id": "7e31a5df-6090-41a7-bcba-da925d308431",
+      "name": "16.7_Cloudinary업로드",
+      "credentials": {
+        "cloudinaryApi": {
+          "id": "FnDtTUDAm5AQUeNn",
+          "name": "Cloudinary account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "36d5601f-a6ea-8050-9be2-fd246f5ec5ad",
+          "mode": "list",
+          "cachedResultName": "ACOS_이미지자산DB.csv",
+          "cachedResultUrl": "https://www.notion.so/36d5601fa6ea80509be2fd246f5ec5ad"
+        },
+        "title": "=썸네일_{{$now}}",
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "이미지상태|select",
+              "selectValue": "프롬프트완료"
+            },
+            {
+              "key": "이미지유형|select",
+              "selectValue": "썸네일"
+            },
+            {
+              "key": "실행ID|rich_text",
+              "textContent": "={{$node[\"01B_실행ID생성\"].json.runId}}"
+            },
+            {
+              "key": "이미지프롬프트|rich_text",
+              "textContent": "={{ $node[\"16.3_이미지전략_GPT\"].json.output[0].content[0].text.image_prompt }}"
+            },
+            {
+              "key": "thumbnail_emotion|rich_text",
+              "textContent": "={{ $node[\"16.3_이미지전략_GPT\"].json.output[0].content[0].text.thumbnail_emotion.join(\", \") }}"
+            },
+            {
+              "key": "플랫폼추천|multi_select",
+              "multiSelectValue": "={{ $node[\"16.3_이미지전략_GPT\"].json.output[0].content[0].text.platform_recommend.join(\",\") }}"
+            },
+            {
+              "key": "이미지전략|rich_text",
+              "textContent": "={{ $node[\"16.3_이미지전략_GPT\"].json.output[0].content[0].text.thumbnail_strategy }}"
+            },
+            {
+              "key": "CTR예상|number",
+              "numberValue": 7.5
+            },
+            {
+              "key": "이미지스타일|multi_select",
+              "multiSelectValue": "={{ $node[\"16.3_이미지전략_GPT\"].json.output[0].content[0].text.image_style.split(\",\")[0].trim() }}"
+            },
+            {
+              "key": "메인피사체|rich_text",
+              "textContent": "={{ $node[\"16.3_이미지전략_GPT\"].json.output[0].content[0].text.main_scene }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        6208,
+        576
+      ],
+      "id": "f221ac5f-05bf-4488-91e0-3b9c606780d6",
+      "name": "16.6_Create a database page",
+      "credentials": {
+        "notionApi": {
+          "id": "6igIb6MkZWrgnz1D",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "=이미지URL|url",
+              "urlValue": "={{ $node[\"16.7_Cloudinary업로드\"].json.secure_url }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        7744,
+        464
+      ],
+      "id": "ba6391bd-0413-4601-8d9b-4a92a8912276",
+      "name": "16.8_노션이미지업데이트",
+      "credentials": {
+        "notionApi": {
+          "id": "6igIb6MkZWrgnz1D",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-image-1-mini"
+        },
+        "prompt": "realistic korean apartment kitchen photo",
+        "options": {
+          "size": "1024x1024"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        6800,
+        304
+      ],
+      "id": "ffd373aa-4b07-4879-963b-cce09b91574a",
+      "name": "Generate an image",
+      "credentials": {
+        "openAiApi": {
+          "id": "D1ghNUDqxupI8kZP",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=너는 블로그 썸네일 이미지 프롬프트 생성기다.\n\n입력값을 바탕으로 OpenAI 이미지 생성용 영어 프롬프트만 출력한다.\n\n규칙:\n- 영어만 출력\n- 설명 금지\n- 따옴표 금지\n- 텍스트, 글자, 로고, 워터마크 금지\n- 한국 생활형 블로그에 어울리는 현실적인 사진 스타일\n- 과장된 광고 이미지 금지\n- 1024x1024 정사각형 썸네일에 적합하게 작성\n- 실제 사람이 찍은 사진처럼 자연스럽게 작성\n- 지나친 AI 느낌 금지\n- 생활감, 현실감, 감정 전달 우선\n- 얼굴 클로즈업보다 상황 중심\n- 중년층 생활 문제 해결형 블로그 분위기 유지\n\n감정 분기 규칙:\n1. 공감\n- 생활감\n- 현실적인 공간\n- 감정 몰입\n- 잔잔한 분위기\n- 실제 한국 생활환경 강조\n\n2. 생활불편\n- 답답함\n- 습기\n- 좁은 공간\n- 정리 안 됨\n- 원인 강조\n- 불편한 생활 장면 강조\n\n3. 궁금증\n- 시선이 멈추는 구도\n- 이유가 궁금해지는 상황\n- 전후 맥락이 암시되는 장면\n- 검색 유도형 분위기\n\n4. 후회방지\n- 잘못된 사용 상황\n- 놓치기 쉬운 문제\n- 실수 유발 상황\n- 경고 느낌의 생활 장면\n\n5. 해결완료\n- 정리된 공간\n- 깨끗함\n- 해결 후 편안함\n- 밝은 분위기\n- 개선된 생활환경 강조\n\n입력 제목:\n{{$json[\"name\"]}}\n\n입력 감정:\n{{$json[\"property_thumbnail_emotion\"]}}\n\n입력 ALT설명:\n{{$json[\"property_alt_text\"]}}\n\n위 입력값을 종합하여\nOpenAI 이미지 생성용 영어 프롬프트만 출력해라.중요:\n폭력, 자해, 우울증, 정신질환, 고어, 범죄, 실제 인물 묘사 금지.\n안전한 생활형 이미지 프롬프트만 생성.\n따뜻한 현실 사진 스타일로 작성. 생활 환경 묘사만 허용"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        6432,
+        304
+      ],
+      "id": "959a9c58-3177-488b-961f-498ed25cf005",
+      "name": "16.6-1 이미지프롬프트생성 GPT",
+      "credentials": {
+        "openAiApi": {
+          "id": "D1ghNUDqxupI8kZP",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=너는 블로그 소재 평가 AI다.\n\n입력된 소재 1개만 평가한다.\n여러 후보를 비교하지 말고, 현재 입력된 이 소재 하나만 독립적으로 점수화한다.\n\n반드시 순수 JSON만 출력한다.\n설명 금지.\n마크다운 금지.\n코드블럭 금지.\n\n평가 기준:\n- CTR 가능성\n- 검색량 가능성\n- 체류 가능성\n- 광고 적합성\n- 플랫폼 적합성\n- 검색 지속성\n- 즉시성\n- 실생활 연관성\n- 구매행동 연결성\n- 경쟁 강도\n- AI 양산글 위험도\n\n반드시 아래 JSON 키만 출력한다.\n\n{\n  \"ctr_score\": 0,\n  \"search_volume_score\": 0,\n  \"retention_score\": 0,\n  \"ad_fit_score\": 0,\n  \"platform_fit_score\": 0,\n  \"search_persistence_score\": 0,\n  \"urgency_score\": 0,\n  \"real_life_score\": 0,\n  \"purchase_action_score\": 0,\n  \"competition_numeric_score\": 0,\n  \"ai_mass_content_risk_score\": 0,\n  \"total_score\": 0,\n  \"ad_fit_label\": \"보통\",\n  \"competition_label\": \"보통\",\n  \"production_priority\": \"후보보류\",\n  \"expected_profitability\": \"보통\",\n  \"recommended_platform\": \"\",\n  \"recommended_track\": \"\",\n  \"recommended_direction\": \"\",\n  \"main_problem\": \"\",\n  \"main_emotion\": \"\",\n  \"ai_reason\": \"\",\n  \"reject_reason\": \"\",\n  \"improvement_points\": []\n}\n\n선택지는 반드시 아래 값만 사용한다.\n\nad_fit_label:\n높음, 보통, 낮음\n\ncompetition_label:\n낮음, 보통, 높음\n\nproduction_priority:\n즉시생성, 후보보류, 폐기\n\nexpected_profitability:\n매우높음, 높음, 보통, 낮음\n\n평가 대상 소재:\n소재명: {{$json.소재명 || $json.materialTitle || $json.title || $json.name || \"\"}}\n플랫폼: {{$json.플랫폼 || $json.platform || \"\"}}\n소재트랙: {{$json.소재트랙 || $json.materialTrack || \"\"}}\n검색문장: {{$json.검색문장 || $json.searchQuery || \"\"}}\n문제상황: {{$json.문제상황 || $json.problem || \"\"}}\n검색의도: {{$json.검색의도 || $json.intent || \"\"}}\n출처유형: {{$json.출처유형 || $json.sourceType || \"\"}}\n트렌드근거: {{$json.트렌드근거 || $json.trendReason || \"\"}}\n반복문제근거: {{$json.반복문제근거 || $json.repeatReason || \"\"}}\n핵심키워드: {{$json.핵심키워드 || $json.keywords || \"\"}}\n\n점수 규칙:\n75점 이상이면 강함.\n55점 이상이면 보통.\n55점 미만이면 약함.\n\ntotal_score는 전체 점수를 0~100 사이 숫자로 계산한다.\n\nproduction_priority 판단:\n- total_score 75 이상이고 AI 양산글 위험이 낮으면 즉시생성\n- total_score 55 이상이면 후보보류\n- total_score 55 미만이면 폐기"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          },
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        2528,
+        464
+      ],
+      "id": "16f20ad2-bc93-4055-8c4e-dea448ae2f02",
+      "name": "08D_생성소재복원1",
+      "credentials": {
+        "openAiApi": {
+          "id": "D1ghNUDqxupI8kZP",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function extractText(j) {\n  return j.output?.[0]?.content?.[0]?.text ||\n    j.output?.[0]?.content?.[0]?.text?.value ||\n    j.choices?.[0]?.message?.content ||\n    j.message?.content ||\n    j.text ||\n    j.content ||\n    j.output ||\n    '{}';\n}\n\nfunction parseJson(v) {\n  if (typeof v === 'object' && v !== null) return v;\n  const s = String(v || '{}')\n    .trim()\n    .replace(/^```json\\s*/i, '')\n    .replace(/^```\\s*/i, '')\n    .replace(/```$/i, '')\n    .trim();\n\n  try {\n    return JSON.parse(s);\n  } catch (e) {\n    return {};\n  }\n}\n\nfunction num(v, fallback = 0) {\n  const n = Number(v);\n  return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : fallback;\n}\n\nfunction label(value, allowed, fallback) {\n  const v = String(value || '').trim();\n  return allowed.includes(v) ? v : fallback;\n}\n\nfunction rt(v) {\n  const s = String(v ?? '').replace(/\\s+/g, ' ').trim().slice(0, 1900);\n  return s ? [{ text: { content: s } }] : [];\n}\n\nfunction competitionLabel(score) {\n  const n = num(score);\n  if (n >= 70) return '높음';\n  if (n >= 40) return '보통';\n  return '낮음';\n}\n\nfunction priorityByScore(score) {\n  const n = num(score);\n  if (n >= 75) return '즉시생성';\n  if (n >= 55) return '후보보류';\n  return '폐기';\n}\n\nfunction profitLabel(score) {\n  const n = num(score);\n  if (n >= 80) return '매우높음';\n  if (n >= 65) return '높음';\n  if (n >= 45) return '보통';\n  return '낮음';\n}\n\nconst gptItems = $input.all();\nconst sourceItems = $items('08C_소재DB_후보저장');\n\nconst evaluated = gptItems.map((item, idx) => {\n  const source = sourceItems[idx]?.json || sourceItems[0]?.json || {};\n  const evaluation = parseJson(extractText(item.json || {}));\n\n  const ctr = num(evaluation.ctr_score);\n  const searchVolume = num(evaluation.search_volume_score);\n  const retention = num(evaluation.retention_score);\n  const adFit = num(evaluation.ad_fit_score);\n  const platformFit = num(evaluation.platform_fit_score);\n  const searchPersistence = num(evaluation.search_persistence_score);\n  const urgency = num(evaluation.urgency_score);\n  const realLife = num(evaluation.real_life_score || evaluation.human_interest_score);\n  const purchaseAction = num(evaluation.purchase_action_score);\n  const competitionNumeric = num(evaluation.competition_numeric_score || evaluation.competition_score);\n  const aiRisk = num(evaluation.ai_mass_content_risk_score);\n\n  let total = num(evaluation.total_score);\n  if (!total) {\n    total = Math.round(\n      ctr * 0.15 +\n      searchVolume * 0.15 +\n      retention * 0.15 +\n      adFit * 0.10 +\n      platformFit * 0.10 +\n      searchPersistence * 0.10 +\n      urgency * 0.05 +\n      realLife * 0.10 +\n      purchaseAction * 0.10\n    );\n  }\n\n  if (competitionNumeric >= 75 && retention < 55) total = Math.max(0, total - 10);\n  if (aiRisk >= 75) total = Math.max(0, total - 8);\n\n  const productionPriority = label(\n    evaluation.production_priority || evaluation.production_decision,\n    ['즉시생성', '후보보류', '폐기'],\n    priorityByScore(total)\n  );\n\n  const normalizedEvaluation = {\n    ...evaluation,\n    ctr_score: ctr,\n    search_volume_score: searchVolume,\n    retention_score: retention,\n    ad_fit_score: adFit,\n    platform_fit_score: platformFit,\n    search_persistence_score: searchPersistence,\n    urgency_score: urgency,\n    real_life_score: realLife,\n    purchase_action_score: purchaseAction,\n    competition_numeric_score: competitionNumeric,\n    ai_mass_content_risk_score: aiRisk,\n    total_score: total,\n    ad_fit_label: label(evaluation.ad_fit_label, ['높음', '보통', '낮음'], profitLabel(adFit)),\n    competition_label: label(evaluation.competition_label, ['낮음', '보통', '높음'], competitionLabel(competitionNumeric)),\n    production_priority: productionPriority,\n    expected_profitability: label(evaluation.expected_profitability, ['매우높음', '높음', '보통', '낮음'], profitLabel(adFit + purchaseAction / 2))\n  };\n\n  const sourcePageId =\n    source.id ||\n    source.pageId ||\n    source.sourcePageId ||\n    source.materialPageId ||\n    source.originalMaterialPageId ||\n    '';\n\n  return {\n    ...source,\n    evaluation: normalizedEvaluation,\n    evaluationRankScore: total,\n    productionDecision: productionPriority,\n    passed: productionPriority === '즉시생성',\n    sourcePageId,\n    materialPageId: sourcePageId,\n    originalMaterialPageId: sourcePageId\n  };\n});\n\nconst viable = evaluated.filter(x =>\n  x.productionDecision !== '폐기'\n);\n\nconst pool = viable.length ? viable : evaluated;\n\npool.sort((a, b) => {\n  const diff =\n    Number(b.evaluationRankScore || 0) -\n    Number(a.evaluationRankScore || 0);\n\n  if (diff) return diff;\n\n  return Number(b.evaluation?.retention_score || 0) -\n         Number(a.evaluation?.retention_score || 0);\n});\n\nconst bestId =\n  (\n    pool[0]?.sourcePageId ||\n    pool[0]?.materialPageId ||\n    pool[0]?.originalMaterialPageId ||\n    pool[0]?.pageId ||\n    ''\n  ).toString();\n\nreturn evaluated.map((x, idx) => {\n  const sourcePageId =\n    x.sourcePageId ||\n    x.materialPageId ||\n    x.originalMaterialPageId ||\n    x.pageId ||\n    '';\n\n  const ev = x.evaluation || {};\n\n  const updateBody = {\n    properties: {\n      \"CTR예상\": {\n        number: x.ctr_score || ev.ctr_score || 0\n      },\n      \"플랫폼적합도\": {\n        number: x.platform_fit_score || ev.platform_fit_score || 0\n      },\n      \"검색지속성\": {\n        number: x.search_persistence_score || ev.search_persistence_score || 0\n      },\n      \"즉시성점수\": {\n        number: x.urgency_score || ev.urgency_score || 0\n      },\n      \"종합점수\": {\n        number: x.total_score || ev.total_score || 0\n      },\n      \"실생활연관성\": {\n        number: x.real_life_score || ev.real_life_score || 0\n      },\n      \"체류유도력\": {\n        number: x.retention_score || ev.retention_score || 0\n      },\n      \"구매행동연결성\": {\n        number: x.purchase_action_score || ev.purchase_action_score || 0\n      },\n      \"인간성점수\": {\n        number: x.human_interest_score ||\n                ev.human_interest_score ||\n                ev.real_life_score ||\n                0\n      },\n      \"광고적합도\": {\n        select: {\n          name: x.ad_fit_label || ev.ad_fit_label || \"보통\"\n        }\n      },\n      \"경쟁강도\": {\n        select: {\n          name: x.competition_label || ev.competition_label || \"보통\"\n        }\n      },\n      \"생성우선순위\": {\n        select: {\n          name: x.productionDecision || \"후보보류\"\n        }\n      },\n      \"예상수익성\": {\n        select: {\n          name: x.expected_profitability || \"보통\"\n        }\n      },\n      \"AI판단사유\": {\n        rich_text: rt(\n          x.ai_reason ||\n          x.reason ||\n          x.reject_reason ||\n          \"\"\n        )\n      }\n    }\n  };\n\n  return {\n    json: {\n      ...x,\n      sourcePageId,\n      materialPageId: sourcePageId,\n      originalMaterialPageId: sourcePageId,\n      pageId: sourcePageId,\n      updateBody,\n      isTopCandidate: sourcePageId.toString() === bestId,\n      passed: x.productionDecision === '즉시생성'\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2864,
+        688
+      ],
+      "id": "5a535dc4-a349-44cc-9951-e5f33c050abd",
+      "name": "08F_소재평가파싱"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/pages/{{$json.sourcePageId || $json.materialPageId || $json.originalMaterialPageId || $json.pageId}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.updateBody}}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 180000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3088,
+        384
+      ],
+      "id": "d1ac9466-4dd9-4c31-96e7-669ebc6f173b",
+      "name": "08G_소재평가DB업데이트",
+      "credentials": {
+        "notionApi": {
+          "id": "6igIb6MkZWrgnz1D",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "98d39988-2420-4de4-950d-05b7f379cc37",
+              "leftValue": "={{$json.productionDecision}}",
+              "rightValue": "즉시생성",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3088,
+        688
+      ],
+      "id": "938f2fff-d390-4ced-8b50-84f0df4275f9",
+      "name": "08H_IF_즉시생성"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "b17fa739-8637-48b6-b6bd-fa2542f8d603",
+              "leftValue": "={{$json.contentState}}",
+              "rightValue": "검수대기",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        8816,
+        480
+      ],
+      "id": "23c39a89-be3e-4bcd-9de3-4daf618d4991",
+      "name": "21_IF_검수통과"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const j = item.json || {};\n\n  return {\n    json: {\n      ...j,\n      notionImagePageId: j.id || j.pageId || '',\n      notionImagePageCreated: true\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9760,
+        208
+      ],
+      "id": "2f53f3d1-5cd7-4a1d-b0e0-d578ff69ae9e",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        7296,
+        304
+      ],
+      "id": "1b16fcef-debb-4b00-ade8-d2e3e317620a",
+      "name": "Merge"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "00_수동실행": {
+      "main": [
+        [
+          {
+            "node": "01_시작합치기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "00_매일실행": {
+      "main": [
+        [
+          {
+            "node": "01_시작합치기",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "01_시작합치기": {
+      "main": [
+        [
+          {
+            "node": "01B_실행ID생성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03_DB_ID추출": {
+      "main": [
+        [
+          {
+            "node": "04_운영설정조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04_운영설정조회": {
+      "main": [
+        [
+          {
+            "node": "05_운영설정정리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05_운영설정정리": {
+      "main": [
+        [
+          {
+            "node": "06_소재대기조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06_소재대기조회": {
+      "main": [
+        [
+          {
+            "node": "07_소재행정리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07_소재행정리": {
+      "main": [
+        [
+          {
+            "node": "08_IF_소재있음",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08_IF_소재있음": {
+      "main": [
+        [
+          {
+            "node": "08D_생성소재복원1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "08A_외부소재_GoogleTrends_RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09_소재잠금": {
+      "main": [
+        [
+          {
+            "node": "10_잠금후복원",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10_잠금후복원": {
+      "main": [
+        [
+          {
+            "node": "11_소재기획_GPT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11_소재기획_GPT": {
+      "main": [
+        [
+          {
+            "node": "12_기획파싱",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "12_기획파싱": {
+      "main": [
+        [
+          {
+            "node": "13_IF_기획진행",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "13_IF_기획진행": {
+      "main": [
+        [
+          {
+            "node": "14_본문작성_GPT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "13B_소재보류폐기처리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "14_본문작성_GPT": {
+      "main": [
+        [
+          {
+            "node": "15_본문파싱_이미지보정",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15_본문파싱_이미지보정": {
+      "main": [
+        [
+          {
+            "node": "16_가상편집부_3중검수_GPT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "16_가상편집부_3중검수_GPT": {
+      "main": [
+        [
+          {
+            "node": "16.2B_검수반영_자동수정_GPT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "17_검수파싱_패키지화": {
+      "main": [
+        [
+          {
+            "node": "18_콘텐츠DB_Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "18_콘텐츠DB_Body": {
+      "main": [
+        [
+          {
+            "node": "19_콘텐츠DB_완성패키지저장",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "19_콘텐츠DB_완성패키지저장": {
+      "main": [
+        [
+          {
+            "node": "20_콘텐츠생성결과복원",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "20_콘텐츠생성결과복원": {
+      "main": [
+        [
+          {
+            "node": "21_이미지슬롯분리",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "21_IF_검수통과",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "21_이미지슬롯분리": {
+      "main": [
+        [
+          {
+            "node": "22_이미지자산_Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "22_이미지자산_Body": {
+      "main": [
+        [
+          {
+            "node": "23_이미지자산DB_프롬프트저장",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "24_발행성과_Body": {
+      "main": [
+        [
+          {
+            "node": "25_발행작업DB_생성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "25_발행작업DB_생성": {
+      "main": [
+        [
+          {
+            "node": "26_발행후복원",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "26_발행후복원": {
+      "main": [
+        [
+          {
+            "node": "27_성과DB_초기기록",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "27_성과DB_초기기록": {
+      "main": [
+        [
+          {
+            "node": "28_소재완료_Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "28_소재완료_Body": {
+      "main": [
+        [
+          {
+            "node": "29_소재DB_생산완료",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "30_승인큐_매시간": {
+      "main": [
+        [
+          {
+            "node": "32_승인큐_ID추출",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "32_승인큐_ID추출": {
+      "main": [
+        [
+          {
+            "node": "33_사용자승인글조회",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "33_사용자승인글조회": {
+      "main": [
+        [
+          {
+            "node": "34_승인글_발행대기처리_Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "34_승인글_발행대기처리_Body": {
+      "main": [
+        [
+          {
+            "node": "35_콘텐츠DB_승인반영",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08C_소재DB_후보저장": {
+      "main": [
+        [
+          {
+            "node": "08D_생성소재복원",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08D_생성소재복원": {
+      "main": [
+        [
+          {
+            "node": "08D_생성소재복원1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08A_외부소재_GoogleTrends_RSS": {
+      "main": [
+        [
+          {
+            "node": "08B_외부RSS_소재후보_Body_v6_RUNTIME_SCHEMA_MATCHED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08B_외부RSS_소재후보_Body_v6_RUNTIME_SCHEMA_MATCHED": {
+      "main": [
+        [
+          {
+            "node": "08C_소재DB_후보저장",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "16.2B_검수반영_자동수정_GPT": {
+      "main": [
+        [
+          {
+            "node": "16.3_이미지전략_GPT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "16.3_이미지전략_GPT": {
+      "main": [
+        [
+          {
+            "node": "16.6-1 이미지프롬프트생성 GPT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "16.4_이미지생성": {
+      "main": [
+        [
+          {
+            "node": "16.5_이미지Binary정리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01B_실행ID생성": {
+      "main": [
+        [
+          {
+            "node": "03_DB_ID추출",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "16.7_Cloudinary업로드": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "16.6_Create a database page": {
+      "main": [
+        []
+      ]
+    },
+    "16.8_노션이미지업데이트": {
+      "main": [
+        []
+      ]
+    },
+    "Generate an image": {
+      "main": [
+        [
+          {
+            "node": "16.7_Cloudinary업로드",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "16.6-1 이미지프롬프트생성 GPT": {
+      "main": [
+        [
+          {
+            "node": "Generate an image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08D_생성소재복원1": {
+      "main": [
+        [
+          {
+            "node": "08F_소재평가파싱",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08F_소재평가파싱": {
+      "main": [
+        [
+          {
+            "node": "08G_소재평가DB업데이트",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "08H_IF_즉시생성",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08G_소재평가DB업데이트": {
+      "main": [
+        [
+          {
+            "node": "09_소재잠금",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08H_IF_즉시생성": {
+      "main": [
+        [
+          {
+            "node": "09_소재잠금",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "21_IF_검수통과": {
+      "main": [
+        [
+          {
+            "node": "24_발행성과_Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "23_이미지자산DB_프롬프트저장": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "17_검수파싱_패키지화",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a3f6b8f6-19b3-4969-a7ca-7c0f6f4c3303",
+  "meta": {
+    "instanceId": "3c101fbcaf940c8ce073d1fab9284d586e8ecc63efc169542cc3c1c4d82ba696"
+  },
+  "id": "UmnE70eFQi4i0mer",
+  "tags": []
+}
